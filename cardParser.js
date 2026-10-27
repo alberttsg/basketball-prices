@@ -66,12 +66,13 @@ export const createParser = ({ players, rules }) => {
     return null
   }
 
-  // grade: { grader, grade } que ya trae la venta (si lo trae)
-  const parse = (title, grade) => {
+  // grade: { grader, grade } que ya trae la venta (si lo trae). ocr: el texto viene de la foto de la carta, no
+  // de un anuncio: no se descarta por las palabras excluidas (el reverso puede decir "photo", "lot"...)
+  const parse = (title, grade, { ocr = false } = {}) => {
     const lower = stripAccents(String(title || '')).toLowerCase()
     let text = normalizeText(title)
 
-    if(excluded.some(word => text.includes(word))) return null
+    if(!ocr && excluded.some(word => text.includes(word))) return null
 
     const player = findPlayer(text)
     if(!player) return null
