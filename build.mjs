@@ -11,6 +11,9 @@
 //   index.json         { updated, epoch, days: { 'YYYY-MM-DD': 'final' | 'partial' }, players: { slug: nº de cartas } }
 //   players.json       [[nombre, slug, activo], ...] (todos los jugadores, para reconocer el nombre en la app)
 //   rules.json         sets, parallels, equipos, alias y palabras excluidas (para cardParser.js en la app)
+//   trends.json        { updated, epoch, lists: { rising7, falling7, rising30, falling30, top } }, cada una
+//                      [{ slug, name, team, key, grade, year, set, number, parallel, printRun, auto, rookie,
+//                      image, price, from, change }] (precios en céntimos, change en %)
 //   p/<slug>.json      { name, slug, team, epoch, cards: [{ year, set, number, parallel, printRun, auto,
 //                        memorabilia, rookie, image, grades: { 'Raw' | 'PSA 10' | ...: { price, low, high, sales,
 //                        lastSale, history: [[día, mediana, ventas, mín, máx], ...] } } }] }
@@ -121,6 +124,48 @@ const summarize = (history, today) => {
     sales: recent.reduce((sum, e) => sum + e[2], 0),
     lastSale: toDate(last[0]),
   }
+}
+
+// Tendencias del mercado (Explore > Trending, como en Mikon): las cartas que más suben y bajan en 7 y 30 días
+// (precio del último día con ventas frente al de antes del periodo) y las más caras (mediana de 30 días, con al
+// menos TRENDS_MIN_SALES ventas). Solo cartas de al menos TRENDS_MIN_CENTS
+const TRENDS_SIZE = 50
+const TRENDS_MIN_CENTS = 500
+const TRENDS_MIN_SALES = 2
+
+const buildTrends = (files, today) => {
+  const items = []
+
+  for (const file of files.values()) {
+    for (const card of file.cards) {
+      for (const [grade, entry] of Object.entries(card.grades)) {
+        const { key, year, set, number, parallel, printRun, auto, rookie, image } = card
+        items.push({ slug: file.slug, name: file.name, team: file.team, key, grade, year, set, number, parallel, printRun, auto, rookie, image, entry })
+      }
+    }
+  }
+
+  const movers = (days) => items.map(({ entry, ...item }) => {
+    const last = entry.history[entry.history.length - 1]
+    const before = [...entry.history].reverse().find(e => e[0] <= today - days)
+    if(!last || !before || before === last || before[1] < TRENDS_MIN_CENTS || last[1] < TRENDS_MIN_CENTS) return null
+    return { ...item, price: last[1], from: before[1], change: Math.round((last[1] - before[1]) / before[1] * 1000) / 10 }
+  }).filter(e => e && Math.abs(e.change) >= 1)
+
+  const top = items
+    .filter(({ entry }) => entry.price >= TRENDS_MIN_CENTS && entry.sales >= TRENDS_MIN_SALES)
+    .map(({ entry, ...item }) => ({ ...item, price: entry.price, from: null, change: null }))
+    .sort((a, b) => b.price - a.price)
+    .slice(0, TRENDS_SIZE)
+
+  const lists = { top }
+  for (const days of [7, 30]) {
+    const list = movers(days)
+    lists[`rising${days}`] = list.filter(e => e.change > 0).sort((a, b) => b.change - a.change).slice(0, TRENDS_SIZE)
+    lists[`falling${days}`] = list.filter(e => e.change < 0).sort((a, b) => a.change - b.change).slice(0, TRENDS_SIZE)
+  }
+
+  return { updated: new Date().toISOString(), epoch: EPOCH, lists }
 }
 
 const loadPlayerFiles = async (out) => {
@@ -289,6 +334,7 @@ const main = async () => {
   await writeFile(`${out}/index.json`, JSON.stringify(index))
   await writeFile(`${out}/players.json`, JSON.stringify(players))
   await writeFile(`${out}/rules.json`, JSON.stringify(rules))
+  await writeFile(`${out}/trends.json`, JSON.stringify(buildTrends(files, today)))
 
   if(process.env.GITHUB_OUTPUT) await appendFile(process.env.GITHUB_OUTPUT, 'changed=true\n')
   console.log(`${Object.keys(index.players).length} jugadores con precios`)
