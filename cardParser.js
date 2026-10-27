@@ -18,6 +18,9 @@ export const slugify = (name) => normalizeText(name).trim().replace(/ /g, '-')
 const GRADERS = { psa: 'PSA', bgs: 'BGS', beckett: 'BGS', sgc: 'SGC', cgc: 'CGC', csg: 'CSG', tag: 'TAG', hga: 'HGA' }
 // También "RCPSA 10": algunos títulos pegan RC al grado
 const GRADE_PATTERN = /(?:^|[^a-z]|rc)(psa|bgs|beckett|sgc|cgc|csg|tag|hga)\s*(?:gem\s*(?:mint|mt)\s*)?(10|[1-9](?:\.5)?)(?![\d.])/
+// Etiquetas de las cajas (la nota y la gradeadora no van juntas): "GEM MT 10", "MINT 9", "10 PSA"...
+const LABEL_GRADE_PATTERN = /(?:gem\s*(?:mint|mt)|pristine|mint|nm[\s-]*mt|ex[\s-]*mt|vg[\s-]*ex)\s*(10|[1-9](?:\.5)?)(?![\d.])|(?:^|[^\d.])(10|[1-9](?:\.5)?)\s*(?:psa|bgs|sgc|cgc)(?![a-z])/
+const GRADER_WORD_PATTERN = /(?:^|[^a-z])(psa|bgs|beckett|sgc|cgc|csg|tag|hga)(?![a-z])/
 // Temporada (2020-21, 2025/26) o año suelto. Se usa el año de inicio
 const SEASON_PATTERN = /(?:^|[^\d])(19[4-9]\d|20[0-4]\d)(?:\s*[-/]\s*(\d{2}))?(?!\d)/g
 // #258, #GN-4, #BCV-18, #TC-CF... (no #/99, que es la tirada)
@@ -86,6 +89,14 @@ export const createParser = ({ players, rules }) => {
       if(match){
         grader = GRADERS[match[1]]
         gradeValue = match[2]
+      }
+    }
+    if(!gradeValue){
+      const graderWord = lower.match(GRADER_WORD_PATTERN)
+      const label = graderWord && lower.match(LABEL_GRADE_PATTERN)
+      if(label){
+        grader = GRADERS[graderWord[1]]
+        gradeValue = label[1] || label[2]
       }
     }
 
