@@ -8,7 +8,8 @@
 // No se publican las ventas sueltas, solo el resumen de cada día por carta (mediana, nº de ventas, mín. y máx.).
 //
 // Archivos publicados:
-//   index.json         { updated, epoch, days: { 'YYYY-MM-DD': 'final' | 'partial' }, players: { slug: nº de cartas } }
+//   index.json         { updated, epoch, days: { 'YYYY-MM-DD': 'final' | 'partial' }, players: { slug: nº de cartas },
+//                      teams: { slug: equipo } }
 //   players.json       [[nombre, slug, activo], ...] (todos los jugadores, para reconocer el nombre en la app)
 //   rules.json         sets, parallels, equipos, alias y palabras excluidas (para cardParser.js en la app)
 //   trends.json        { updated, epoch, lists: { rising7, falling7, rising30, falling30, top } }, cada una
@@ -303,6 +304,7 @@ const main = async () => {
   await rm(`${out}/p`, { recursive: true, force: true })
   await mkdir(`${out}/p`, { recursive: true })
   index.players = {}
+  index.teams = {}
 
   for (const file of files.values()) {
     for (const card of file.cards) {
@@ -323,6 +325,7 @@ const main = async () => {
 
     await writeFile(`${out}/p/${file.slug}.json`, JSON.stringify(file))
     index.players[file.slug] = file.cards.length
+    if(file.team) index.teams[file.slug] = file.team
   }
 
   for (const date of Object.keys(index.days)) {
