@@ -295,7 +295,9 @@ const main = async () => {
     console.log(`${date}: ${sales.length} ventas, ${cards.length} reconocidas (quedan ${rowsRemaining} filas hoy)`)
   }
 
-  if(!processed && !FORCE){
+  // Sin días nuevos no hace falta publicar, salvo que falte algún archivo (uno nuevo del feed, como trends.json)
+  const complete = (await readJson(`${out}/trends.json`)) && index.teams
+  if(!processed && !FORCE && complete){
     console.log('Sin días nuevos')
     return
   }
